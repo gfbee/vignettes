@@ -5,6 +5,16 @@
 ;   'Number
 ;   '(<type> → <type>)
 
+; To type the ‘→’ character:
+;   \rightarrow followed immediately [no space] by ctrl-\ or alt-\ or esc-\ depending on platform.
+; A unique prefix is sufficient, e.g. : \ri
+; Uncomment and run the following to see the documentation for that in your browser:
+#;(begin (require help/search)
+         (perform-search "latex keybindings" ""))
+
+; Automatically prints explanations for some of the racket used in this module.
+(require "explain.rkt")
+
 (define type-environment #hash{(string-length . (String → Number))
                                (string-append . (String → (String → String)))
                                (sqr . (Number → Number))})
@@ -51,4 +61,3 @@
 (type '((string-append "a") "b"))
 (type '(string-length ((string-append "a") "b")))
 (type '(sqr (string-length ((string-append "a") "b"))))
-
