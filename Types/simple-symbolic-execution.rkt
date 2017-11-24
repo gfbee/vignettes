@@ -17,8 +17,16 @@
 (define-syntax #%app
   (syntax-parser
     [(_ f a) #'(match f
-                 [`(,a′ → ,r) (and (~app equal? a′ a) r)]
+                 [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
+                 #;[f′ #:when (~app procedure? f′) (~app f′ a)]
                  [else #false])]))
+
+; Overrides unary λ to have parameter type annotation, and immediately evaluates
+;  the body in the scope of the parameter with that type.
+(require (only-in racket (λ ~λ)))
+(define-syntax λ
+  (syntax-parser
+    [(_ (an-id:id a-type:expr) body:expr) #'`(,a-type → ,(~app (~λ (an-id) body) a-type))]))
 
 ('(X → Y) 'X)
 ('(X → Y) 'Z)
@@ -41,3 +49,9 @@ s
 ((string-append "a") s)
 (string-length ((string-append "a") s))
 (sqr (string-length ((string-append "a") s)))
+
+(define f (λ (s 'String) (string-length ((string-append "a") s))))
+f
+(define * '(Number → (Number → Number)))
+(define cube (λ (x 'Number) ((* ((* x) x)) x)))
+cube
