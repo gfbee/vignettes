@@ -36,7 +36,7 @@
    • (define (<id> (<id>)) <expr>)
    • letrec
 
- In particular, the language lacks: recursive binding, conditionals. |#
+ In particular, the language lacks: recursive binding, conditionals, mutation. |#
 
 ; Override numeric and string literals to produce the symbols 'Number and 'String.
 (require (for-syntax syntax/parse))
