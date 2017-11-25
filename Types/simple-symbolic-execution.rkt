@@ -1,32 +1,67 @@
 #lang racket #| Simple Type Checking as Symbolic Execution |#
 
+#| Running this program checks and produces the types of its top-level expressions and variables.
+
+ All runtime values are types.
+
+ To turn evaluation into checking, we override the meaning of racket's:
+   • numeric and string literals
+   • unary function literals (λ)
+   • unary function call |#
+
+#| Language of types.
+   • 'String,  'Number
+   • '(<Type> → <Type>)
+ In particular, lacks: subtyping, polymorphism. |#
+
+#| Language of expressions.
+
+ Literals
+   • <string-literal>, <numeric-literal>
+   • (λ (<identifier> <Type>) <expression>)
+   • <Type>
+  Since values are types, a type can be used as a “canonical” literal of the type.
+
+ Unary Function Call
+   • (<function-expression> <argument-expression>)
+
+ Variable Access
+   • <identifier>
+
+ Automatically, a racket binder for an explicitly provided expression can be used
+  for non-recursive binding. In particular:
+   • (define <id> <expr>)
+   • (let* ([<id> <expr>] ...) <expr>)
+  but not
+   • (define (<id> (<id>)) <expr>)
+   • letrec
+
+ In particular, the language lacks: recursive binding, conditionals. |#
+
 ; Override numeric and string literals to produce the symbols 'Number and 'String.
 (require (for-syntax syntax/parse))
-(define-syntax #%datum
-  (syntax-parser
-   [(_ . datum:number) #''Number]
-   [(_ . datum:string) #''String]
-   [(_ . datum) #''datum]))
+(define-syntax #%datum (syntax-parser [(_ . datum:number) #''Number]
+                                      [(_ . datum:string) #''String]
+                                      [(_ . datum) #''datum]))
 
 123
 "hello"
 
-; Overrides unary function call to "call" '(A → R) with 'A to produce 'R,
-;  otherwise produce #false.
+; Override unary function call to "call" '(A → R) with 'A to produce 'R, otherwise produce #false.
 (require (only-in racket (#%app ~app)))
-(define-syntax #%app
-  (syntax-parser
-    [(_ f a) #'(match f
-                 [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
-                 #;[f′ #:when (~app procedure? f′) (~app f′ a)]
-                 [else #false])]))
+(define-syntax #%app (syntax-parser [(_ f a) #'(match f
+                                                 [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
+                                                 [else #false])]))
 
-; Overrides unary λ to have parameter type annotation, and immediately evaluates
-;  the body in the scope of the parameter with that type.
+; Override unary λ to require parameter type annotation, and immediately evaluate the body
+;  in the scope of the parameter with that type.
+; In other words, calling the function exactly once, when created, with the “one” value of the
+;  argument type, is the minimal sufficient representative of all possible calls.
 (require (only-in racket (λ ~λ)))
-(define-syntax λ
-  (syntax-parser
-    [(_ (an-id:id a-type:expr) body:expr) #'`(,a-type → ,(~app (~λ (an-id) body) a-type))]))
+(define-syntax λ (syntax-parser [(_ (an-id:id a-type:expr) body:expr)
+                                 ; Could use any naming mechanism, but uses built-in lambda to
+                                 ;  maximize the connection to “ordinary” evaluation.
+                                 #'`(,a-type → ,(~app (~λ (an-id) body) a-type))]))
 
 ('(X → Y) 'X)
 ('(X → Y) 'Z)
