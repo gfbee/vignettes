@@ -1,26 +1,27 @@
-#lang racket #| Simple Type Checking as Symbolic Execution |#
+#lang racket #| Type Check the Simply Typed Lambda Calculus [λ→] by Symbolic Evaluation |#
 
-#| Running this program checks and produces the types of its top-level expressions and variables.
+#| Running this program checks the types of its expressions, which evaluate to their type or #false.
 
  All runtime values are types.
-
  To turn evaluation into checking, we override the meaning of racket's:
    • numeric and string literals
    • unary function literals (λ)
    • unary function call |#
 
 #| Language of types.
-   • 'String,  'Number
-   • '(<Type> → <Type>)
- In particular, lacks: subtyping, polymorphism. |#
+   • “Base Types” : 'String, 'Number
+     - λ→ can have any number of base types, all considered disjoint
+   • “Type Constructor” : '(<Type> → <Type>)
+ Some notable type aspects λ→ lacks: subtyping, polymorphism. |#
 
 #| Language of expressions.
 
- Literals
+ Literal
    • <string-literal>, <numeric-literal>
    • (λ (<identifier> <Type>) <expression>)
    • <Type>
   Since values are types, a type can be used as a “canonical” literal of the type.
+  Any number of typed literals can be added.
 
  Unary Function Call
    • (<function-expression> <argument-expression>)
@@ -28,7 +29,7 @@
  Variable Access
    • <identifier>
 
- Automatically, a racket binder for an explicitly provided expression can be used
+ Binder: automatically, a racket binder for an explicitly provided expression can be used
   for non-recursive binding. In particular:
    • (define <id> <expr>)
    • (let* ([<id> <expr>] ...) <expr>)
@@ -36,7 +37,9 @@
    • (define (<id> (<id>)) <expr>)
    • letrec
 
- In particular, the language lacks: recursive binding, conditionals, mutation. |#
+ Uncurried syntactic sugar for function types, calls, and literals has no significant impact,
+  except add a Unit/Void type representing a single runtime element for zero-arity functions.
+ ToDo: comment on recursive binding, conditionals, mutation. |#
 
 ; Override numeric and string literals to produce the symbols 'Number and 'String.
 (require (for-syntax syntax/parse))
@@ -47,7 +50,7 @@
 123
 "hello"
 
-; Override unary function call to "call" '(A → R) with 'A to produce 'R, otherwise produce #false.
+; Override unary function call to “call” '(A → R) with 'A to produce 'R, otherwise produce #false.
 (require (only-in racket (#%app ~app)))
 (define-syntax #%app (syntax-parser [(_ f a) #'(match f
                                                  [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
