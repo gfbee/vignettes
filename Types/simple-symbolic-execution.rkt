@@ -54,7 +54,7 @@
 (require (only-in racket (#%app ~app)))
 (define-syntax #%app (syntax-parser [(_ f a) #'(match f
                                                  [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
-                                                 [else #false])]))
+                                                 [_ #false])]))
 
 ; Override unary λ to require parameter type annotation, and immediately evaluate the body
 ;  in the scope of the parameter with that type.
