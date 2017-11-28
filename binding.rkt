@@ -130,3 +130,24 @@
 (let* ([x (+ 1 x)]
        [x (+ 20 x)])
   x)
+
+
+#| Rec |#
+
+#;(rec id init-expr)
+; ≡
+#;(let ([id (void)])
+    (set! id init-expr)
+    id)
+
+#;(letrec ([id init-expr] ...)
+    body ...)
+; ≡
+#;(let ([id (rec id init-expr)] ...)
+    body ...)
+
+#;(letrec* ([id init-expr] ...)
+           body ...)
+; ≡
+#;(let* ([id (rec id init-expr)] ...)
+    body ...)
