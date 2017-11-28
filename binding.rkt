@@ -27,15 +27,22 @@
 ; Racket:
 #;(let ([id init-expr]
         ...)
-    body-expr
-    ...
+    body-expr ...
     result-expr)
 ;  ≡
 #;((λ (id ...)
-     body-expr
-     ...
+     body-expr ...
      result-expr)
    init-expr ...)
+
+#;(define-syntax-rule (let ([id init-expr]
+                            ...)
+                        body-expr ...
+                        result-expr)
+    ((λ (id ...)
+       body-expr ...
+       result-expr)
+     init-expr ...))
 
 ; Expanding the multiple-arity shorthand:
 #;(((λ (id1) (λ (id2) body)) init1) init2)
@@ -70,18 +77,32 @@
 
 ; Racket: for a single binding, the same as ‘let’, otherwise a sequence of nestings:
 #;(let* ([id init-expr]
-         binding
-         ...)
-    body-expr
-    ...
+         binding ...)
+    body-expr ...
     result-expr)
 ;  ≡
 #;(let ([id init-expr])
-    (let* (binding
-           ...)
-      body-expr
-      ...
+    (let* (binding ...)
+      body-expr ...
       result-expr))
+
+#;(define-syntax let*
+    (syntax-rules ()
+      ; Simplest base case, then nesting also handles case of single binding.
+      [(let* ()
+         body-expr ...
+         result-expr)
+       (let ()
+         body-expr ...
+         result-expr)]
+      [(let* ([id init-expr]
+              binding ...)
+         body-expr ...
+         result-expr)
+       (let ([id init-expr])
+         (let* (binding ...)
+           body-expr ...
+           result-expr))]))
 
 #;(let* ([id1 init1]
          [id2 init2])
