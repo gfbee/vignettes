@@ -17,7 +17,11 @@
 
  The ‘letrec*’ form combines the aspects of ‘let*’ and ‘letrec’ that people commonly use,
   so most languages have at least one form with ‘letrec*’ semantics, or several that differ
-  only in ways not having to do with scope and order of initialization. |#
+  only in ways not having to do with scope and order of initialization.
+
+ See also §4.2.2 of the R7RS Scheme standard:
+
+   http://www.larcenists.org/Documentation/Documentation0.98/r7rs.pdf |#
 
 
 #| Let: the canonical local naming construct.
