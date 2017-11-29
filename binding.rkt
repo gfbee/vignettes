@@ -1,14 +1,10 @@
-#lang racket #| Binding Concepts : let, let*, rec |#
+#lang racket #| Binding Concepts : let, let*, letrec, letrec* |#
 
 #| An expression in the scope of some named values is “parameterized” by those values,
     in other words is a function of those values. So local naming constructs tend to be
     shorthands for making and immediately calling a function.
 
  The ‘let’ form is a straightforward syntactic abbreviation of that pattern.
- Then ‘let*’ varies in how it sequences the initialization of multiple names,
-  and ‘rec’ allows a value to recursively refer to its name.
-
- The ‘rec’ form combines with ‘let’ or ‘let*’, to form ‘letrec’ and ‘letrec*’.
 
  The four forms ‘let’, ‘let*’, ‘letrec’, and ‘letrec*’ combine:
    • a sequence of: identifier and associated initialization expression
@@ -16,51 +12,44 @@
 
  The semantic distinctions involve scope and order of initialization.
 
- The way people usually use ‘let*’ and ‘rec’ is covered well by ‘letrec*’, so most languages
-  have at least one form with ‘letrec*’ semantics, or several that differ in ways not having
-  to do with scope and order of initialization. |#
+ The ‘let*’ form varies in how it sequences the initialization of multiple names.
+ The ‘letrec’ form allows an initialization expression to refer to its identifier.
 
-#| Let: the canonical local naming construct. |#
+ The ‘letrec*’ form combines the aspects of ‘let*’ and ‘letrec’ that people commonly use,
+  so most languages have at least one form with ‘letrec*’ semantics, or several that differ
+  only in ways not having to do with scope and order of initialization. |#
+
+
+#| Let: the canonical local naming construct.
+
+ Summary:
+   1. Evaluate all the initialization expressions.
+   2. Create a new environment from the identifiers.
+   3. Initialize the environment from the values.
+   4. Evaluate within the new environment. |#
 
 ; Equivalence to a Lambda Calculus expression: let id = e1 in e2 ≡ ((λid.e2)e1).
 
-; Racket:
-#;(let ([id init-expr]
-        ...)
-    body-expr ...
-    result-expr)
-;  ≡
-#;((λ (id ...)
-     body-expr ...
-     result-expr)
-   init-expr ...)
-
-#;(define-syntax-rule (let ([id init-expr]
-                            ...)
-                        body-expr ...
-                        result-expr)
-    ((λ (id ...)
-       body-expr ...
-       result-expr)
+; Racket's ‘let’, with equivalence as a syntax rule:
+#;(define-syntax-rule
+    (let ([id init-expr] ...)
+      body-expr ... result-expr)
+    ((λ (id ...) body-expr ... result-expr)
      init-expr ...))
 
-; Expanding the multiple-arity shorthand:
-#;(((λ (id1) (λ (id2) body)) init1) init2)
+; Expanding the multiple-arity shorthand in the binary case:
+#;(((λ (id1)
+      (λ (id2)
+        body))
+    init1)
+   init2)
 
-; Typical restriction: distinct identifiers.
-; Invalid:
-#;(let ([x 1]
-        [x 2])
-    x)
-
-; Semantics [when derived from eager left-to-right by-value function call].
-; 1. Evaluate initialization expressions in order, producings values.
-; 2. Make new nested local scope: ids shadow any ids outside the expression
-; 3. Put variables into scope, initialize with the values from #1.
-; 4. In the new scope: evaluate body expressions, in order, then evaluate
-;     the result expression to produce the value of the whole expression.
+; Typical restriction: distinct identifiers. For example the following is then invalid:
+#;(let ([x 1] [x 2]) x)
 
 (define x 0)
+
+; Hover the pointer over each ‘x’ to highlight which other ‘x’s correspond to it.
 
 (let ([x (add1 x)])
   x)
@@ -70,54 +59,48 @@
       [x2 (+ 2 x)])
   (list x x1 x2))
 
+; Detailed semantics, when derived from eager left-to-right by-value function call:
+;   1. Evaluate the initialization expressions in order, producings values.
+;   2. Make a new nested local environment: variables in it shadow any variables
+;       outside the expression that have the same name.
+;   3. For each id put a variable into the environment, with the value from #1.
+;   4. In the new environment: evaluate the body expressions, in order, then evaluate
+;       the result expression to produce the value of the whole expression.
 
-#| Let*
 
- For “building up” named values: using some of the names in later initializations. |#
+#| Let* : “building up” named values.
 
-; Racket: for a single binding, the same as ‘let’, otherwise a sequence of nestings:
-#;(let* ([id init-expr]
-         binding ...)
-    body-expr ...
-    result-expr)
-;  ≡
-#;(let ([id init-expr])
-    (let* (binding ...)
-      body-expr ...
-      result-expr))
+ Summary:
+   1.  Evaluate the first initialization expression.
+   2.  Create a new environment from its identifier.
+   3.  Initialize the environment from the value.
+   3*. Repeat 1-3 for each subsequent binding clause.
+   4.  Evaluate within the new environment.
 
+ For a single binding clause it's equivalent to ‘let’.
+ For multiple binding clauses, it's equivalent to a sequence of nested ‘let’s.
+   In particular the identitifiers don't need to be distinct. |#
+
+; Racket's ‘let*’, with equivalence as a syntax rule:
 #;(define-syntax let*
     (syntax-rules ()
-      ; Simplest base case, then nesting also handles case of single binding.
-      [(let* ()
-         body-expr ...
-         result-expr)
-       (let ()
-         body-expr ...
-         result-expr)]
-      [(let* ([id init-expr]
-              binding ...)
-         body-expr ...
-         result-expr)
+      ; Zero bindings is the simplest base case, and then nesting also handles a single binding.
+      [(let* () body-expr ... result-expr)
+       (let () body-expr ... result-expr)]
+      ;
+      [(let* ([id init-expr] binding ...)
+         body-expr ... result-expr)
        (let ([id init-expr])
          (let* (binding ...)
-           body-expr ...
-           result-expr))]))
+           body-expr ... result-expr))]))
 
-#;(let* ([id1 init1]
-         [id2 init2])
-    body)
-; Expanding to core lambda calculus:
-#;((λ (id1) ((λ (id2) body) init2)) init1)
-
-; Semantics [when derived from eager by-value function call].
-; 1. For each binding [id init-expr], in order:
-;    A. Evaluate initialization expression, produce a value.
-;    B. Make new nested local scope: id shadows any ids outside the expression
-;        and any from previous bindings
-;    C. Put variable into scope, initialize with the values from #1.
-; 2. In the new most-nested scope: evaluate body expressions, in order, then evaluate
-;     the result expression to produce the value of the whole expression.
+#;(let* ([id1 init1] [id2 init2]) body)
+; Expanding the binary case, to the lambda calculus:
+#;((λ (id1)
+     ((λ (id2)
+        body)
+      init2))
+   init1)
 
 (let* ([x (add1 x)])
   x)
@@ -131,23 +114,50 @@
        [x (+ 20 x)])
   x)
 
+; Detailed semantics, when derived from eager by-value function call are similar to ‘let’,
+;  but nesting a new environment for each identifier.
 
-#| Rec |#
 
-#;(rec id init-expr)
-; ≡
-#;(let ([id (void)])
-    (set! id init-expr)
-    id)
+#| Letrec and letrec* : naming recursive values.
 
-#;(letrec ([id init-expr] ...)
-    body ...)
-; ≡
-#;(let ([id (rec id init-expr)] ...)
-    body ...)
+ With eager semantics this is only useful for creating recursive and mutually recursive functions.
+ With lazy semantics it can create unbounded data.
 
-#;(letrec* ([id init-expr] ...)
-           body ...)
-; ≡
-#;(let* ([id (rec id init-expr)] ...)
-    body ...)
+ Summary of ‘letrec’: it switches the order of steps 1 and 2 from the ‘let’ summary.
+   1. Create a new environment from the identifiers.
+   2. In the new environment: evaluate all the initialization expressions.
+   3. Initialize the environment from the values.
+   4. Evaluate within the new environment.
+
+ Summary of ‘letrec*’: it alternates steps 2 and 3 of ‘letrec’ once per binding, allowing
+  later initialization expressions to use earlier values, not just refer to them. |#
+
+; Racket's ‘letrec’ is more precisely ‘letrec*’, both are captured with the following syntax rule,
+;  refined by the comment:
+#;(define-syntax-rule
+    (letrec ([id init-expr] ...)
+            body-expr ... result-expr)
+    (let ([id (void)] ...)
+      ; letrec : it's an an error to use the value of an id in the ‘set!’ expressions
+      ; letrec*: it's an error to use the value of a not-yet-‘set!’ id in the ‘set!’ expressions
+      (set! id init-expr) ...
+      body-expr ... result-expr))
+
+
+#| Racket's ‘define’ and ‘local’.
+
+ In a definition context [a block that can mix a sequence of definitions and expressions],
+  the ‘define’s collectively behave like ‘letrec*’, and the sequenced initializations are
+  intermixed with the evaluations of the non-definition expressions.
+
+ Summary:
+   1. Create a new environment from the identifiers.
+   2. In the new environment, evaluate each initialization and non-definition expression, in order,
+       initializing each variable after its initializaton expression is evaluated.
+   3. Use the result of the final expression, which must be a non-definition, as the block's value.
+
+ Racket's ‘local’ has the same outer form as the let forms, but with ‘letrec*’ semantics, and
+  definition syntax for the binding clauses.
+
+ (local (definition ...)
+   body-expr ... result-expr) |#
