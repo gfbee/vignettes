@@ -6,17 +6,17 @@
 
  Compatibility relation ‘∼’ [\sim, not tilde, in this file] between two types:
    τ ∼ τ
-   ? ∼ τ, τ ∼ ?
-   σ1 ∼ τ1 ∧ σ2 ∼ τ2 ⇒ σ1 → τ1 ∼ σ2 → τ2
- In particular, it's also symmetric.
+   ? ∼ τ, and τ ∼ ?
+   σ1 ∼ τ1  ∧  σ2 ∼ τ2  ⇒  (σ1 → τ1) ∼ (σ2 → τ2)
+  • in particular, it's symmetric
 
  But it's not transitive, so not an equivalence relation. For example:
    (? → Number) ∼ (Boolean → ?)
    (? → Number) ∼ (Number  → Number)
 
  Typing it via evaluation:
-   (? τ) = ?
-   ((τ → σ) τ′) = σ , if  τ ∼ τ′ , otherwise fail
+   (       ? τ) = ?
+   ((τ′ → σ) τ) = σ , if  τ ∼ τ′ , otherwise fail
 
  An obstruction before Siek and Taha's 2006 paper was people's focus on subtyping.
  ToDo: where does it differ from a polymorphic type, and/or an Any type. |#
