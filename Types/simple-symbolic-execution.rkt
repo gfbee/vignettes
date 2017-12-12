@@ -1,95 +1,144 @@
-#lang racket #| Type Check the Simply Typed Lambda Calculus [λ→] by Symbolic Evaluation |#
+#lang racket #| Type Check the Simply Typed LC [‘STLC’, aka ‘λ→’] by Symbolic Evaluation |#
 
-#| Running this program checks the types of its expressions, which evaluate to their type or #false.
+#| Simply Typed Lambda Calculus
 
- All runtime values are types.
- To turn evaluation into checking, we override the meaning of racket's:
-   • numeric and string literals
-   • unary function literals (λ)
-   • unary function call |#
+  Types:
+    some base types [λ→ can have any set of base type, all considered disjoint]
+    a type constructor: (type → type)
+    base type false for lack of a valid type [the “bottom” type, aka ‘⊥’]
 
-#| Language of types.
-   • “Base Types” : 'String, 'Number
-     - λ→ can have any number of base types, all considered disjoint
-   • “Type Constructor” : '(<Type> → <Type>)
- Some notable type aspects λ→ lacks: subtyping, polymorphism. |#
+  Some notable type aspects λ→ lacks: subtyping, polymorphism.
 
-#| Language of expressions.
+  Expressions:
+    type
+    numeric-literal
+    string-literal
+    identifier
+    (λ (identifier type) expression)
+    (expression expression)
 
- Literal
-   • <string-literal>, <numeric-literal>
-   • (λ (<identifier> <Type>) <expression>)
-   • <Type>
-  Since values are types, a type can be used as a “canonical” literal of the type.
-  Any number of typed literals can be added.
+  The following overrides evaluation so that evaluating an expression type checks it, and produces the
+   type of the expression. If an expression does not type check its type is #false.
 
- Unary Function Call
-   • (<function-expression> <argument-expression>)
+  We imagine this as part of a compiler.
+  In other words this would ‘run’ the program at *compile time*, to *just* type check it.
+  Types will be *run time* values during this *compile time* type checking evaluation of the program.
 
- Variable Access
-   • <identifier>
+  A value is now a type, which is a “symbolic” representative of any value of that type.
+  That core meaning of “symbolic” in static analysis.
 
- Binder: automatically, a racket binder for an explicitly provided expression can be used
-  for non-recursive binding. In particular:
-   • (define <id> <expr>)
-   • (let* ([<id> <expr>] ...) <expr>)
-  but not
-   • (define (<id> (<id>)) <expr>)
-   • letrec
+  All numbers will be represented by one representative value: the symbol 'Number.
+  Similarly, 'String stands for a string.
+  Unary functions will be represented by lists of the proper form.
 
- Uncurried syntactic sugar for function types, calls, and literals has no significant impact,
-  except add a Unit/Void type representing a single runtime element for zero-arity functions.
- ToDo: comment on recursive binding, conditionals, mutation. |#
+  In particular, evaluation below is overriden so that the following evaluate as indicated:
+    numeric-literal : 'Number
+     string-literal : 'String
+    (λ (id type) expr) : `(,type → ,type-of-expression), if expression type checks
+    (f-expr a-expr) : result-type, if f-expr type checks as `(,argument-type → ,result-type),
+                       and a-expr type checks as argument-type.
 
-; Override numeric and string literals to produce the symbols 'Number and 'String.
-(require (for-syntax syntax/parse))
-(define-syntax #%datum (syntax-parser [(_ . datum:number) #''Number]
+  Evaluation of identifiers, with the proper scoping, is automatic without overriding the default.
+
+  Also, we will use (define id expr), also without overriding. |#
+
+; On first reading, skip to the use of this library that follows after it.
+(module λ→ racket
+  (provide (rename-out [datum #%datum]
+                       [app #%app]
+                       [λ→ λ] [λ→ lambda]))
+
+  (require (for-syntax syntax/parse))
+  ; Override numeric and string literals to produce the symbols 'Number and 'String.
+  (define-syntax datum (syntax-parser [(_ . datum:number) #''Number]
                                       [(_ . datum:string) #''String]
                                       [(_ . datum) #''datum]))
 
-123
-"hello"
-
-; Override unary function call to “call” '(A → R) with 'A to produce 'R, otherwise produce #false.
-(require (only-in racket (#%app ~app)))
-(define-syntax #%app (syntax-parser [(_ f a) #'(match f
-                                                 [`(,a′ → ,r) (and a′ (~app equal? a′ a) r)]
+  ; Override unary function call to “call” '(A → R) with 'A to produce 'R, otherwise produce #false.
+  (define-syntax app (syntax-parser [(_ f a) #'(match (list f a)
+                                                 [(list `(,a′ → ,r) a′) (and a′ r)]
                                                  [_ #false])]))
 
-; Override unary λ to require parameter type annotation, and immediately evaluate the body
-;  in the scope of the parameter with that type.
-; In other words, calling the function exactly once, when created, with the “one” value of the
-;  argument type, is the minimal sufficient representative of all possible calls.
-(require (only-in racket (λ ~λ)))
-(define-syntax λ (syntax-parser [(_ (an-id:id a-type:expr) body:expr)
-                                 ; Could use any naming mechanism, but uses built-in lambda to
-                                 ;  maximize the connection to “ordinary” evaluation.
-                                 #'`(,a-type → ,(~app (~λ (an-id) body) a-type))]))
+  ; Override unary λ to require parameter type annotation, and immediately evaluate the body
+  ;  in the scope of the parameter with that type.
+  (define-syntax λ→
+    (syntax-parser [(_ (an-id:id a-type:expr) body:expr)
+                    ; Use built-in λ for naming, to maximize the connection to “ordinary” evaluation.
+                    #'`(,a-type → ,((λ (an-id) body) a-type))])))
+(require 'λ→)
 
+; All numbers at runtime [if we stick to the STLC subset] are the one symbolic number 'Number:
+123
+324
+
+"hello"
+"bye"
+
+; These are considered the two atomic values, and so we should be able to use them directly:
+'Number
+'String
+
+; We can also name a/the number:
+(define n 456)
+n
+
+; Technically these are not in our subset, but illustrate general typing of function call:
 ('(X → Y) 'X)
 ('(X → Y) 'Z)
 
+; The one function, representing all such functions, taking a number and producing a string:
+'(Number → String)
+; Call a/the representative of such functions, on a representative of a number or string:
 ('(Number → String) 'Number)
 ('(Number → String) 123)
 ('(Number → String) "hi")
 
+; Name a function:
 (define string-length '(String → Number))
-(define string-append '(String → (String → String)))
-(define sqr '(Number → Number))
+; This is being run only for type checking, so that is literally the value of ‘string-length’.
+string-length
+(string-length "abc")
+(define abc "abc")
+(string-length abc)
+(string-length 123)
 
-(define s "b")
-s
-(string-length s)
-(sqr s)
-(sqr (string-length s))
+(define add1 '(Number → Number))
+(define sub1 add1) ; For type checking, these two functions are literally the same.
+
+(add1 (string-length abc))
+(string-length (add1 abc))
+(add1 (sub1 (string-length abc)))
+
+(define string-append '(String → (String → String)))
 
 (string-append "a")
-((string-append "a") s)
-(string-length ((string-append "a") s))
-(sqr (string-length ((string-append "a") s)))
+((string-append "a") abc)
+(string-length ((string-append "a") abc))
+(add1 (string-length ((string-append "a") abc)))
 
-(define f (λ (s 'String) (string-length ((string-append "a") s))))
-f
+(λ (s 'String) 0)
+((λ (s 'String) 0) "abc")
+((λ (s 'String) 0) 123)
+
+; Type checking starts with the idea of evaluating every expression once, with a simplified semantics.
+;
+; Regardless of when and how many times this will be called [zero, more than one], type checking
+; evaluates it once, immediately, with the representative of all valid arguments. Just as values
+; are representative of any/all value(s) of a certain type, calling a function creation expression
+; once represents, mininally but generally, its behaviour for all of its calls.
+(λ (s 'String) (add1 (string-length ((string-append "a") s))))
+
+(define f (λ (s 'String) (add1 (string-length ((string-append "a") s)))))
+
+(f "abc")
+(f 123)
+; The distinction between the function call operation, which combines a function and an argument,
+;  and passing the argument to the function, is especially important here.
+; The two previous expressions perform function call, but do *not* evaluate the body of the function.
+; In particular, as usual for eager by-value call, the function is *not* in control of the evaluation.
+
 (define * '(Number → (Number → Number)))
 (define cube (λ (x 'Number) ((* ((* x) x)) x)))
 cube
+(cube 123)
+(cube abc)
